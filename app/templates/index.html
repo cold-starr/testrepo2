@@ -1,86 +1,240 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Transaction Manager</title>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
-    h1 { color: #333; }
-    .balance { font-size: 1.4rem; margin-bottom: 20px; }
-    .balance.positive { color: green; }
-    .balance.negative { color: red; }
-    form.add-form { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
-    form.add-form input, form.add-form select { padding: 8px; margin: 5px 0 10px; width: 100%; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-    form.add-form button { background: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
-    form.add-form button:hover { background: #45a049; }
-    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
-    th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
-    th { background: #333; color: white; }
-    .credit { color: green; }
-    .debit { color: red; }
-    .flash { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
-    .flash.success { background: #d4edda; color: #155724; }
-    .flash.error { background: #f8d7da; color: #721c24; }
-    .delete-btn { background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
-    .delete-btn:hover { background: #c0392b; }
-  </style>
-</head>
-<body>
-  <h1>Transaction Manager</h1>
+{% extends "base.html" %}
+{% block title %}Transactions{% endblock %}
+{% block page_title %}Transactions{% endblock %}
 
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% for category, message in messages %}
-      <div class="flash {{ category }}">{{ message }}</div>
-    {% endfor %}
-  {% endwith %}
-
-  <div class="balance {{ 'positive' if balance >= 0 else 'negative' }}">
-    Current Balance: ${{ "%.2f"|format(balance) }}
+{% block content %}
+<!-- Summary Cards -->
+<div class="cards">
+  <div class="card">
+    <div class="label">Balance</div>
+    <div class="value {{ 'green' if balance >= 0 else 'red' }}">${{ "%.2f"|format(balance) }}</div>
   </div>
+  <div class="card">
+    <div class="label">Total Credit</div>
+    <div class="value green">${{ "%.2f"|format(total_credit) }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Total Debit</div>
+    <div class="value red">${{ "%.2f"|format(total_debit) }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Transactions</div>
+    <div class="value blue">{{ pagination.total }}</div>
+  </div>
+</div>
 
-  <form class="add-form" action="/add" method="POST">
-    <label>Description</label>
-    <input type="text" name="description" placeholder="e.g. Salary, Rent..." required />
-    <label>Amount ($)</label>
-    <input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required />
-    <label>Type</label>
-    <select name="type">
-      <option value="credit">Credit</option>
-      <option value="debit">Debit</option>
-    </select>
-    <button type="submit">Add Transaction</button>
-  </form>
+<!-- Toolbar -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+  <h3 style="font-size:.95rem;color:var(--muted);">All Transactions</h3>
+  <div style="display:flex;gap:10px;">
+    <a href="{{ url_for('export_csv', **filters) }}" class="btn btn-outline btn-sm"><i class="fa-solid fa-download"></i> Export CSV</a>
+    <button class="btn btn-primary btn-sm" onclick="openModal('addModal')"><i class="fa-solid fa-plus"></i> Add Transaction</button>
+  </div>
+</div>
 
+<!-- Filters -->
+<form method="GET" action="/">
+  <div class="filter-bar">
+    <div class="form-group">
+      <label>Search</label>
+      <input type="text" name="search" value="{{ filters.search }}" placeholder="Description..."/>
+    </div>
+    <div class="form-group">
+      <label>Type</label>
+      <select name="type">
+        <option value="">All</option>
+        <option value="credit" {{ 'selected' if filters.type == 'credit' }}>Credit</option>
+        <option value="debit"  {{ 'selected' if filters.type == 'debit'  }}>Debit</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Category</label>
+      <select name="category">
+        <option value="">All</option>
+        {% for c in categories %}
+        <option value="{{ c }}" {{ 'selected' if filters.category == c }}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>From</label>
+      <input type="date" name="date_from" value="{{ filters.date_from }}"/>
+    </div>
+    <div class="form-group">
+      <label>To</label>
+      <input type="date" name="date_to" value="{{ filters.date_to }}"/>
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-filter"></i> Filter</button>
+      <a href="/" class="btn btn-outline btn-sm">Clear</a>
+    </div>
+  </div>
+</form>
+
+<!-- Table -->
+<div class="table-wrap">
   <table>
     <thead>
       <tr>
         <th>#</th>
         <th>Description</th>
+        <th>Category</th>
         <th>Type</th>
         <th>Amount</th>
+        <th>Note</th>
         <th>Date</th>
-        <th>Action</th>
+        <th>Actions</th>
       </tr>
     </thead>
     <tbody>
       {% for t in transactions %}
       <tr>
-        <td>{{ t.id }}</td>
+        <td style="color:var(--muted);">{{ t.id }}</td>
         <td>{{ t.description }}</td>
-        <td class="{{ t.type }}">{{ t.type.capitalize() }}</td>
-        <td class="{{ t.type }}">${{ "%.2f"|format(t.amount) }}</td>
-        <td>{{ t.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+        <td><span class="badge badge-cat">{{ t.category }}</span></td>
+        <td><span class="badge badge-{{ t.type }}">{{ t.type.capitalize() }}</span></td>
+        <td style="font-weight:600;color:{{ 'var(--green)' if t.type == 'credit' else 'var(--red)' }};">
+          {{ '+' if t.type == 'credit' else '-' }}${{ "%.2f"|format(t.amount) }}
+        </td>
+        <td style="color:var(--muted);font-size:.8rem;">{{ t.note[:40] + '…' if t.note|length > 40 else t.note }}</td>
+        <td style="color:var(--muted);font-size:.8rem;">{{ t.created_at.strftime("%b %d, %Y %H:%M") }}</td>
         <td>
-          <form action="/delete/{{ t.id }}" method="POST" style="display:inline;">
-            <button class="delete-btn" type="submit">Delete</button>
+          <button class="btn btn-warning btn-sm" onclick="openEdit({{ t.id }}, '{{ t.description|e }}', {{ t.amount }}, '{{ t.type }}', '{{ t.category }}', '{{ t.note|e }}')">
+            <i class="fa-solid fa-pen"></i>
+          </button>
+          <form action="/delete/{{ t.id }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this transaction?')">
+            <button class="btn btn-danger btn-sm" type="submit"><i class="fa-solid fa-trash"></i></button>
           </form>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" style="text-align:center;">No transactions yet.</td></tr>
+      <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted);">No transactions found.</td></tr>
       {% endfor %}
     </tbody>
   </table>
-</body>
-</html>
+</div>
+
+<!-- Pagination -->
+{% if pagination.pages > 1 %}
+<div class="pagination">
+  {% if pagination.has_prev %}
+    <a href="{{ url_for('index', page=pagination.prev_num, **filters) }}"><i class="fa-solid fa-chevron-left"></i></a>
+  {% endif %}
+  {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+    {% if p %}
+      <a href="{{ url_for('index', page=p, **filters) }}" class="{{ 'current' if p == pagination.page }}">{{ p }}</a>
+    {% else %}
+      <span>…</span>
+    {% endif %}
+  {% endfor %}
+  {% if pagination.has_next %}
+    <a href="{{ url_for('index', page=pagination.next_num, **filters) }}"><i class="fa-solid fa-chevron-right"></i></a>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Add Modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <h3><i class="fa-solid fa-plus"></i> New Transaction</h3>
+    <form action="/add" method="POST">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Description *</label>
+          <input type="text" name="description" placeholder="e.g. Monthly Salary" required/>
+        </div>
+        <div class="form-group">
+          <label>Amount ($) *</label>
+          <input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required/>
+        </div>
+        <div class="form-group">
+          <label>Type *</label>
+          <select name="type">
+            <option value="credit">Credit</option>
+            <option value="debit">Debit</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select name="category">
+            {% for c in categories %}
+            <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Note</label>
+          <textarea name="note" placeholder="Optional note..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('addModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Add</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3><i class="fa-solid fa-pen"></i> Edit Transaction</h3>
+    <form id="editForm" method="POST">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Description *</label>
+          <input type="text" name="description" id="edit_description" required/>
+        </div>
+        <div class="form-group">
+          <label>Amount ($) *</label>
+          <input type="number" name="amount" id="edit_amount" step="0.01" min="0.01" required/>
+        </div>
+        <div class="form-group">
+          <label>Type *</label>
+          <select name="type" id="edit_type">
+            <option value="credit">Credit</option>
+            <option value="debit">Debit</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select name="category" id="edit_category">
+            {% for c in categories %}
+            <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Note</label>
+          <textarea name="note" id="edit_note"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('editModal')">Cancel</button>
+        <button type="submit" class="btn btn-warning"><i class="fa-solid fa-check"></i> Update</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function openModal(id) { document.getElementById(id).classList.add('open'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+  document.querySelectorAll('.modal-overlay').forEach(el => {
+    el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+  });
+
+  function openEdit(id, desc, amount, type, category, note) {
+    document.getElementById('editForm').action = '/edit/' + id;
+    document.getElementById('edit_description').value = desc;
+    document.getElementById('edit_amount').value = amount;
+    document.getElementById('edit_type').value = type;
+    document.getElementById('edit_category').value = category;
+    document.getElementById('edit_note').value = note;
+    openModal('editModal');
+  }
+</script>
+{% endblock %}

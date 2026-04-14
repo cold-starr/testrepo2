@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}TxnApp{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f172a; --surface: #1e293b; --surface2: #273549;
+      --accent: #6366f1; --accent2: #818cf8;
+      --green: #22c55e; --red: #ef4444; --yellow: #f59e0b;
+      --text: #e2e8f0; --muted: #94a3b8; --border: #334155;
+      --radius: 10px;
+    }
+    body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px 0; flex-shrink: 0; }
+    .sidebar .logo { padding: 0 20px 24px; font-size: 1.2rem; font-weight: 700; color: var(--accent2); display: flex; align-items: center; gap: 10px; }
+    .sidebar nav a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: all .2s; }
+    .sidebar nav a:hover, .sidebar nav a.active { background: var(--surface2); color: var(--text); border-left: 3px solid var(--accent); }
+    .sidebar nav a i { width: 18px; text-align: center; }
+
+    /* Main */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 28px; display: flex; align-items: center; justify-content: space-between; }
+    .topbar h2 { font-size: 1.1rem; font-weight: 600; }
+    .content { padding: 28px; overflow-y: auto; flex: 1; }
+
+    /* Cards */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+    .card .label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+    .card .value { font-size: 1.6rem; font-weight: 700; }
+    .card .value.green { color: var(--green); }
+    .card .value.red   { color: var(--red); }
+    .card .value.blue  { color: var(--accent2); }
+    .card .value.yellow{ color: var(--yellow); }
+
+    /* Alerts */
+    .alert { padding: 12px 16px; border-radius: var(--radius); margin-bottom: 16px; font-size: 0.875rem; }
+    .alert.success { background: #14532d44; border: 1px solid #22c55e55; color: var(--green); }
+    .alert.error   { background: #7f1d1d44; border: 1px solid #ef444455; color: var(--red); }
+
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: opacity .2s; text-decoration: none; }
+    .btn:hover { opacity: .85; }
+    .btn-primary  { background: var(--accent); color: #fff; }
+    .btn-success  { background: var(--green); color: #fff; }
+    .btn-danger   { background: var(--red); color: #fff; }
+    .btn-warning  { background: var(--yellow); color: #000; }
+    .btn-outline  { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-sm { padding: 5px 10px; font-size: 0.78rem; }
+
+    /* Table */
+    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th { background: var(--surface2); padding: 12px 16px; text-align: left; font-size: 0.78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    tbody td { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 0.875rem; vertical-align: middle; }
+    tbody tr:hover { background: var(--surface2); }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; }
+    .badge-credit { background: #14532d55; color: var(--green); }
+    .badge-debit  { background: #7f1d1d55; color: var(--red); }
+    .badge-cat    { background: #1e3a5f55; color: var(--accent2); }
+
+    /* Form */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group.full { grid-column: 1 / -1; }
+    label { font-size: 0.8rem; color: var(--muted); }
+    input, select, textarea { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 9px 12px; border-radius: 6px; font-size: 0.875rem; width: 100%; outline: none; }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 70px; }
+
+    /* Filter bar */
+    .filter-bar { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+    .filter-bar .form-group { flex: 1; min-width: 140px; }
+    .filter-bar .form-group label { font-size: 0.75rem; }
+
+    /* Modal */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; width: 100%; max-width: 520px; }
+    .modal h3 { margin-bottom: 20px; font-size: 1rem; }
+    .modal-footer { margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* Pagination */
+    .pagination { display: flex; gap: 6px; margin-top: 20px; justify-content: center; }
+    .pagination a, .pagination span { padding: 6px 12px; border-radius: 6px; font-size: 0.82rem; text-decoration: none; border: 1px solid var(--border); color: var(--text); }
+    .pagination a:hover { background: var(--surface2); }
+    .pagination .current { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      .sidebar { display: none; }
+      .form-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="logo"><i class="fa-solid fa-wallet"></i> TxnApp</div>
+    <nav>
+      <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' }}">
+        <i class="fa-solid fa-chart-pie"></i> Dashboard
+      </a>
+      <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' }}">
+        <i class="fa-solid fa-list"></i> Transactions
+      </a>
+      <a href="{{ url_for('export_csv') }}">
+        <i class="fa-solid fa-file-csv"></i> Export CSV
+      </a>
+      <a href="/api/transactions" target="_blank">
+        <i class="fa-solid fa-code"></i> REST API
+      </a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <h2>{% block page_title %}{% endblock %}</h2>
+      <span style="font-size:.8rem;color:var(--muted);">{{ now.strftime('%B %d, %Y') if now else '' }}</span>
+    </div>
+    <div class="content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <div class="alert {{ category }}"><i class="fa-solid fa-{{ 'check' if category == 'success' else 'triangle-exclamation' }}"></i> {{ message }}</div>
+        {% endfor %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
