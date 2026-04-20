@@ -206,6 +206,39 @@ def delete_transaction(txn_id):
     flash("Transaction deleted.", "success")
     return redirect(url_for("index"))
 
+@app.route("/import/csv", methods=["POST"])
+def import_csv():
+    file = request.files.get("csv_file")
+    if not file or not file.filename.endswith(".csv"):
+        flash("Please upload a valid CSV file.", "error")
+        return redirect(url_for("index"))
+
+    stream = io.StringIO(file.stream.read().decode("utf-8"), newline=None)
+    reader = csv.DictReader(stream)
+    imported, skipped = 0, 0
+
+    for row in reader:
+        try:
+            description = row.get("Description", "").strip()
+            txn_type    = row.get("Type", "").strip().lower()
+            amount      = float(row.get("Amount", 0))
+            category    = row.get("Category", "Other").strip()
+            note        = row.get("Note", "").strip()
+
+            if not description or txn_type not in ("credit", "debit") or amount <= 0:
+                skipped += 1
+                continue
+
+            db.session.add(Transaction(description=description, amount=amount,
+                                       type=txn_type, category=category, note=note))
+            imported += 1
+        except (ValueError, KeyError):
+            skipped += 1
+
+    db.session.commit()
+    flash(f"Imported {imported} transaction(s). {skipped} row(s) skipped.", "success" if imported else "error")
+    return redirect(url_for("index"))
+
 @app.route("/export/csv")
 def export_csv():
     search, txn_type, category, date_from, date_to = _parse_filters()
